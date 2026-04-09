@@ -6,6 +6,10 @@ AI新闻聚合系统配置文件
 QQ_EMAIL = "1092604093@qq.com"
 QQ_AUTH_CODE = "ipupupwzvomqjiae"  # 需要替换为实际的授权码
 
+# 第二个QQ邮箱配置
+QQ_EMAIL2 = "xianghongyuan@vip.qq.com"
+QQ_AUTH_CODE2 = "jopjgqdvscpmbebe"
+
 # SMTP服务器配置
 SMTP_SERVER = "smtp.qq.com"
 SMTP_PORT = 465
