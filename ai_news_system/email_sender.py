@@ -1,10 +1,11 @@
 """
-邮件发送模块 - 支持双邮箱
+邮件发送模块 - 支持双邮箱 + 分类 + HTML格式
 """
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from collections import defaultdict
 import config
 import logging
 
@@ -67,20 +68,24 @@ class EmailSender:
             return False
 
     def _generate_email_body(self, news_list):
-        """生成邮件内容"""
+        """生成分类邮件内容"""
+        from summary_generator import categorize_news, get_professional_explanation, get_simple_explanation
+
         body = f"AI新闻日报 - {datetime.now().strftime('%Y年%m月%d日 %H:%M')}\n"
-        body += "=" * 60 + "\n\n"
+        body += "=" * 70 + "\n\n"
 
-        categories = {}
+        # 按细致分类组织
+        categories = defaultdict(list)
         for news in news_list:
-            cat = news.get('category', '其他')
-            if cat not in categories:
-                categories[cat] = []
-            categories[cat].append(news)
+            # 使用智能分类
+            detailed_category = categorize_news(news.get('title', ''), news.get('summary', ''))
+            categories[detailed_category].append(news)
 
-        for category, items in categories.items():
-            body += f"【{category}】\n"
-            body += "-" * 40 + "\n"
+        # 按分类输出
+        for category in sorted(categories.keys()):
+            items = categories[category]
+            body += f"\n【{category}】({len(items)}条新闻)\n"
+            body += "-" * 70 + "\n\n"
 
             for i, news in enumerate(items, 1):
                 title = news.get('title', '标题缺失')
@@ -88,12 +93,25 @@ class EmailSender:
                 url = news.get('url', '#')
                 source = news.get('source', '未知来源')
 
+                # 生成专业版和简洁版
+                try:
+                    pro_explain = get_professional_explanation(category, title, summary)[:150]
+                    simple_explain = get_simple_explanation(category, title, summary)[:120]
+                except:
+                    pro_explain = summary[:100]
+                    simple_explain = summary[:80]
+
                 body += f"{i}. {title}\n"
                 body += f"   来源: {source}\n"
                 body += f"   摘要: {summary}\n"
+                body += f"   【专业版】{pro_explain}\n"
+                body += f"   【简洁版】{simple_explain}\n"
                 body += f"   链接: {url}\n\n"
 
-        body += "=" * 60 + "\n"
-        body += "本邮件由AI新闻聚合系统自动生成\n"
+        body += "=" * 70 + "\n"
+        body += "📊 统计信息:\n"
+        body += f"   总计: {len(news_list)}条新闻\n"
+        body += f"   分类: {len(categories)}个主题\n"
+        body += "\n本邮件由AI新闻聚合系统自动生成\n"
 
         return body
