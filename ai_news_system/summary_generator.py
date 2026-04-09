@@ -3,21 +3,22 @@ AI新闻智能总结系统 - 专业版 + 小白版
 自动分析和总结最新AI新闻，生成两个版本的理解指南
 """
 
-import json
+import logging
 from datetime import datetime
-import sqlite3
+
+logger = logging.getLogger(__name__)
 
 # 新闻分类关键词映射
 CATEGORY_KEYWORDS = {
-    '大模型突破': ['Claude', 'GPT', 'Gemini', 'LLaMA', 'Qwen', '模型', '能力'],
-    '推理能力': ['推理', 'reasoning', 'reasoning能力', '逻辑', '数学'],
-    '长上下文': ['上下文', 'context', 'token', '长度'],
-    '多模态': ['视频', 'audio', '音频', '图像', 'vision', '多模态'],
-    '开源': ['开源', '开放', 'open source', 'LLaMA', 'Mistral'],
-    '应用产品': ['应用', '产品', 'API', '集成', '部署'],
-    '优化效率': ['MoE', 'MOE', '效率', '加速', 'inference', '推理速度'],
-    '安全治理': ['安全', '对齐', 'alignment', 'jailbreak'],
-    '论文研究': ['论文', 'arxiv', '研究', '算法'],
+    '大模型突破': ['claude', 'gpt', 'gemini', 'llama', 'qwen', '模型', '能力', 'model', 'release'],
+    '推理能力': ['推理', 'reasoning', '逻辑', '数学', 'reasoning', 'chain-of-thought', 'cot'],
+    '长上下文': ['上下文', 'context', 'token', '长度', 'window', 'extended', 'long'],
+    '多模态': ['视频', 'audio', '音频', '图像', 'vision', '多模态', 'video', 'audio', 'image'],
+    '开源': ['开源', '开放', 'open source', 'llama', 'mistral', 'open-source', '开源模型'],
+    '应用产品': ['应用', '产品', 'api', '集成', '部署', 'application', 'product', 'launch'],
+    '优化效率': ['moe', 'efficiency', '效率', '加速', 'inference', '推理速度', 'optimize', 'performance'],
+    '安全治理': ['安全', '对齐', 'alignment', 'safety', 'security', '防护', 'jailbreak'],
+    '论文研究': ['论文', 'arxiv', '研究', '算法', 'paper', 'research', 'study', 'algorithm'],
 }
 
 def categorize_news(title, summary=''):
