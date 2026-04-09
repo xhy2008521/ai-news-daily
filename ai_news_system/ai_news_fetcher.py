@@ -24,6 +24,7 @@ class NewsAggregator:
         self.fetch_international_news()
         self.fetch_academic_news()
         self.fetch_official_news()
+        self.fetch_research_news()
 
         logger.info(f"爬取完成，共获得 {len(self.news_list)} 条新闻")
         return self.news_list
@@ -72,6 +73,17 @@ class NewsAggregator:
         for source_name, rss_url in sources.items():
             try:
                 self._fetch_rss(rss_url, source_name, '官方发布')
+            except Exception as e:
+                logger.warning(f"爬取{source_name}失败: {str(e)}")
+
+    def fetch_research_news(self):
+        """爬取研究机构发布"""
+        logger.info("爬取研究机构...")
+
+        sources = config.DATA_SOURCES.get('research', {})
+        for source_name, rss_url in sources.items():
+            try:
+                self._fetch_rss(rss_url, source_name, '研究机构')
             except Exception as e:
                 logger.warning(f"爬取{source_name}失败: {str(e)}")
 
