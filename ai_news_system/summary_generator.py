@@ -8,17 +8,49 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# 新闻分类关键词映射
+# 新闻分类关键词映射（强化版）
 CATEGORY_KEYWORDS = {
-    '大模型突破': ['claude', 'gpt', 'gemini', 'llama', 'qwen', '模型', '能力', 'model', 'release'],
-    '推理能力': ['推理', 'reasoning', '逻辑', '数学', 'reasoning', 'chain-of-thought', 'cot'],
-    '长上下文': ['上下文', 'context', 'token', '长度', 'window', 'extended', 'long'],
-    '多模态': ['视频', 'audio', '音频', '图像', 'vision', '多模态', 'video', 'audio', 'image'],
-    '开源': ['开源', '开放', 'open source', 'llama', 'mistral', 'open-source', '开源模型'],
-    '应用产品': ['应用', '产品', 'api', '集成', '部署', 'application', 'product', 'launch'],
-    '优化效率': ['moe', 'efficiency', '效率', '加速', 'inference', '推理速度', 'optimize', 'performance'],
-    '安全治理': ['安全', '对齐', 'alignment', 'safety', 'security', '防护', 'jailbreak'],
-    '论文研究': ['论文', 'arxiv', '研究', '算法', 'paper', 'research', 'study', 'algorithm'],
+    '大模型突破': [
+        'claude', 'gpt', 'gemini', 'llama', 'qwen', 'mistral', 'palm', 'lama2',
+        '模型', '能力', 'model', 'release', '发布', '新增', 'update', 'announced',
+        'new version', 'breakthrough', '突破', '革新', 'advance', '进步'
+    ],
+    '推理能力': [
+        '推理', 'reasoning', '逻辑', '数学', 'chain-of-thought', 'cot', '思维链',
+        'math', 'code', '代码', 'solution', '解题', 'problem solving', 'complex problem'
+    ],
+    '长上下文': [
+        '上下文', 'context', 'token', '长度', 'window', 'extended', 'long', '扩展',
+        'length', '序列', 'sequence', 'million', '100k', '200k', '超长'
+    ],
+    '多模态': [
+        '视频', 'audio', '音频', '图像', 'vision', '多模态', 'video', 'audio', 'image',
+        'multimodal', '声音', 'speech', 'image understanding', '视觉', 'image analysis'
+    ],
+    '开源': [
+        '开源', '开放', 'open source', 'llama', 'mistral', 'open-source', '开源模型',
+        'github', 'huggingface', '开源发布', 'released', '免费', 'free model'
+    ],
+    '应用产品': [
+        '应用', '产品', 'api', '集成', '部署', 'application', 'product', 'launch',
+        'service', '服务', 'tool', '工具', 'feature', '功能', 'plugin', '插件',
+        'announce', '宣布', 'introduce', '介绍', 'platform', '平台'
+    ],
+    '优化效率': [
+        'moe', 'efficiency', '效率', '加速', 'inference', '推理速度', 'optimize', 'performance',
+        'fast', '快速', 'speed', '速度', 'quantization', '量化', 'compression', '压缩',
+        'efficient', '轻量', 'lightweight', 'mobile', 'edge'
+    ],
+    '安全治理': [
+        '安全', '对齐', 'alignment', 'safety', 'security', '防护', 'jailbreak', '防止滥用',
+        'responsible', '负责任', 'trust', 'bias', 'fairness', '公平', 'ethics', '伦理',
+        'red team', '红队', 'adversarial', '对抗'
+    ],
+    '论文研究': [
+        '论文', 'arxiv', '研究', '算法', 'paper', 'research', 'study', 'algorithm',
+        'method', '方法', 'new approach', '新方法', 'propose', '提出', 'science',
+        'investigation', '调查', 'analysis', '分析'
+    ],
 }
 
 def categorize_news(title, summary=''):
