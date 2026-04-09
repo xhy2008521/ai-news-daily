@@ -26,8 +26,56 @@ class NewsAggregator:
         self.fetch_official_news()
         self.fetch_research_news()
 
-        logger.info(f"爬取完成，共获得 {len(self.news_list)} 条新闻")
+        # 去重和排序
+        self.news_list = self._deduplicate_and_sort(self.news_list)
+
+        logger.info(f"爬取完成，共获得 {len(self.news_list)} 条新闻（已去重）")
         return self.news_list
+
+    def _deduplicate_and_sort(self, news_list):
+        """去重和排序新闻"""
+        # 按URL去重（核心：相同URL视为重复）
+        seen_urls = set()
+        deduplicated = []
+
+        for news in news_list:
+            url = news.get('url', '')
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                deduplicated.append(news)
+
+        # 按重要性排序：官方发布 > 论文研究 > 国际新闻 > 国内新闻
+        source_priority = {
+            'OpenAI Blog': 100,
+            'OpenAI Research': 100,
+            'DeepMind Blog': 95,
+            'Google AI': 90,
+            'Google Research': 90,
+            'Meta AI': 85,
+            'Microsoft Research': 85,
+            'Anthropic': 85,
+            'Stanford HAI': 80,
+            'Berkeley AI': 80,
+            'MIT CSAIL': 80,
+            'Papers with Code': 75,
+            'arXiv': 70,
+            'TechCrunch': 65,
+            'VentureBeat': 60,
+            'Hacker News': 55,
+            '机器之心': 50,
+            '量子位': 48,
+        }
+
+        # 添加优先级字段
+        for news in deduplicated:
+            source = news.get('source', '')
+            priority = source_priority.get(source, 0)
+            news['priority'] = priority
+
+        # 按优先级降序排序
+        sorted_news = sorted(deduplicated, key=lambda x: (-x.get('priority', 0), x.get('source', '')))
+
+        return sorted_news
 
     def fetch_domestic_news(self):
         """爬取国内新闻源"""
