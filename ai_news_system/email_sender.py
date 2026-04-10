@@ -1,82 +1,102 @@
 """
-邮件发送模块 - 完整版（HTML + 纯文本双格式 + 分类 + 解读）
+邮件发送模块 - 全中文版（HTML + 纯文本双格式 + 分类 + 解读 + 动态多邮箱）
 """
 import smtplib
+import os
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from collections import defaultdict
 import config
-import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _get_all_emails():
+    """动态获取 config.py 中所有已配置的邮箱（不限数量）"""
+    emails = []
+    # 获取第一个邮箱
+    email = getattr(config, 'QQ_EMAIL', None)
+    auth = getattr(config, 'QQ_AUTH_CODE', None)
+    if email and auth:
+        emails.append((email, auth))
+
+    # 获取第2~N个邮箱
+    for i in range(2, 20):  # 最多支持19个额外邮箱
+        email = getattr(config, f'QQ_EMAIL{i}', None)
+        auth = getattr(config, f'QQ_AUTH_CODE{i}', None)
+        if email and auth:
+            emails.append((email, auth))
+
+    return emails
 
 
 class EmailSender:
     def __init__(self):
         self.smtp_server = config.SMTP_SERVER
         self.smtp_port = config.SMTP_PORT
-        self.email = config.QQ_EMAIL
-        self.auth_code = config.QQ_AUTH_CODE
-        self.email2 = getattr(config, 'QQ_EMAIL2', None)
-        self.auth_code2 = getattr(config, 'QQ_AUTH_CODE2', None)
+        self.emails = _get_all_emails()
 
     def send_news(self, news_list):
-        """发送新闻到配置的邮箱（HTML + 纯文本）"""
+        """发送新闻到所有配置的邮箱"""
         if not news_list:
             logger.warning("没有新闻需要发送")
+            return False
+
+        if not self.emails:
+            logger.error("没有配置任何邮箱")
             return False
 
         # 生成两个版本
         html_body = self._generate_html_email(news_list)
         text_body = self._generate_text_email(news_list)
 
-        success = True
+        success_count = 0
+        for email, auth_code in self.emails:
+            if self._send_to_email(email, auth_code, html_body, text_body):
+                success_count += 1
 
-        # 发送到第一个邮箱
-        if not self._send_to_email(self.email, self.auth_code, html_body, text_body):
-            success = False
+        total = len(self.emails)
+        if success_count == total:
+            logger.info(f"邮件已成功推送到全部 {total} 个邮箱")
+        else:
+            logger.warning(f"邮件推送: {success_count}/{total} 成功")
 
-        # 发送到第二个邮箱（如果配置了）
-        if self.email2 and self.auth_code2:
-            if not self._send_to_email(self.email2, self.auth_code2, html_body, text_body):
-                success = False
-
-        return success
+        return success_count > 0
 
     def _send_to_email(self, email, auth_code, html_body, text_body):
-        """发送邮件到指定邮箱（同时支持HTML和纯文本）"""
+        """发送邮件到指定邮箱（HTML + 纯文本双格式）"""
         try:
-            # 创建多部分邮件（HTML优先，纯文本备用）
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"{config.EMAIL_SUBJECT_PREFIX} {datetime.now().strftime('%Y年%m月%d日')}"
+            msg['Subject'] = f"AI新闻日报 | {datetime.now().strftime('%Y年%m月%d日')}"
             msg['From'] = email
             msg['To'] = email
 
-            # 先添加纯文本部分（备用）
+            # 纯文本备用
             text_part = MIMEText(text_body, 'plain', 'utf-8')
             msg.attach(text_part)
 
-            # 再添加HTML部分（优先显示）
+            # HTML 优先
             html_part = MIMEText(html_body, 'html', 'utf-8')
             msg.attach(html_part)
 
-            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=10) as server:
+            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=15) as server:
                 server.login(email, auth_code)
                 server.send_message(msg)
 
-            logger.info(f"邮件成功发送到: {email} (HTML + 纯文本)")
+            logger.info(f"邮件成功发送到: {email}")
             return True
 
-        except smtplib.SMTPAuthenticationError:
-            logger.error(f"认证失败: {email}")
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"认证失败 ({email}): {e}")
             return False
         except Exception as e:
-            logger.error(f"发送失败 ({email}): {str(e)}")
+            logger.error(f"发送失败 ({email}): {e}")
             return False
 
     def _generate_html_email(self, news_list):
-        """生成美观的HTML邮件"""
+        """生成全中文美观的HTML邮件"""
         from summary_generator import categorize_news
 
         # 按分类组织
@@ -108,17 +128,17 @@ class EmailSender:
             categories_html += f'''
             <div class="category-section" style="border-left: 5px solid {color};">
                 <h3 style="color: {color}; margin: 15px 0 10px 0; padding-left: 10px;">
-                    📌 {category} ({len(items)}条)
+                    {category}（{len(items)}条）
                 </h3>
             '''
 
-            for i, news in enumerate(items[:6], 1):  # 每个分类最多显示6条
+            for i, news in enumerate(items[:6], 1):  # 每类最多6条
                 title = news.get('title', '标题缺失')
                 source = news.get('source', '未知来源')
                 url = news.get('url', '#')
-                summary = news.get('summary', '暂无摘要')[:100]
-                pro = news.get('professional_explanation', '')[:120]
-                simple = news.get('simple_explanation', '')[:100]
+                summary = news.get('summary', '暂无摘要')[:120]
+                pro = news.get('professional_explanation', '')[:130]
+                simple = news.get('simple_explanation', '')[:110]
 
                 categories_html += f'''
                 <div class="news-card">
@@ -127,14 +147,14 @@ class EmailSender:
                         <div class="news-title">
                             <a href="{url}" target="_blank" style="color: {color};">{title}</a>
                         </div>
-                        <div class="news-source">📍 {source}</div>
+                        <div class="news-source">来源: {source}</div>
                         <div class="news-summary">{summary}</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; font-size: 12px;">
-                            <div style="background: #f0f0f0; padding: 8px; border-radius: 4px;">
-                                <strong style="color: #5e72e4;">专业版:</strong> {pro}
+                            <div style="background: #f0f4ff; padding: 8px; border-radius: 4px;">
+                                <strong style="color: #5e72e4;">专业解读:</strong> {pro}
                             </div>
-                            <div style="background: #f9f9f9; padding: 8px; border-radius: 4px;">
-                                <strong style="color: #764ba2;">简洁版:</strong> {simple}
+                            <div style="background: #f9f5ff; padding: 8px; border-radius: 4px;">
+                                <strong style="color: #764ba2;">简洁解读:</strong> {simple}
                             </div>
                         </div>
                     </div>
@@ -143,8 +163,14 @@ class EmailSender:
 
             categories_html += '</div>'
 
-        html = f'''
-<!DOCTYPE html>
+        # 统计信息
+        total_news = len(news_list)
+        total_cats = len(categories)
+        total_sources = len(set(n.get('source', '') for n in news_list))
+
+        today = datetime.now().strftime('%Y年%m月%d日')
+
+        html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -153,228 +179,171 @@ class EmailSender:
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: #f5f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: #f0f2f5;
             color: #333;
             line-height: 1.6;
             padding: 20px;
         }}
         .container {{
-            max-width: 900px;
+            max-width: 860px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
         }}
         .header {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 50px 30px;
+            padding: 40px 30px 30px;
             text-align: center;
         }}
-        .header h1 {{
-            font-size: 36px;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
-        }}
-        .header p {{
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 20px;
-        }}
+        .header h1 {{ font-size: 32px; margin-bottom: 8px; letter-spacing: 1px; }}
+        .header .subtitle {{ font-size: 14px; opacity: 0.9; margin-bottom: 6px; }}
+        .header .date {{ font-size: 13px; opacity: 0.8; }}
         .stats {{
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            padding: 0 30px;
-            margin-top: -30px;
+            gap: 12px;
+            padding: 0 25px;
+            margin-top: -25px;
             position: relative;
             z-index: 1;
         }}
         .stat {{
             background: white;
-            padding: 20px;
+            padding: 18px 12px;
             border-radius: 8px;
             text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }}
-        .stat-value {{
-            font-size: 28px;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 5px;
-        }}
-        .stat-label {{
-            font-size: 12px;
-            color: #666;
-        }}
-        .content {{
-            padding: 30px;
-        }}
+        .stat-value {{ font-size: 26px; font-weight: bold; color: #667eea; margin-bottom: 4px; }}
+        .stat-label {{ font-size: 12px; color: #888; }}
+        .content {{ padding: 25px; }}
         .category-section {{
-            margin-bottom: 25px;
-            padding: 15px;
-            background: #f9f9f9;
+            margin-bottom: 22px;
+            padding: 14px;
+            background: #fafbfc;
             border-radius: 8px;
         }}
         .news-card {{
             display: flex;
-            gap: 15px;
-            padding: 15px;
+            gap: 12px;
+            padding: 14px;
             background: white;
             border-radius: 6px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-        }}
-        .news-card:hover {{
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
         }}
         .news-number {{
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             color: white;
             font-weight: bold;
             flex-shrink: 0;
+            font-size: 14px;
         }}
-        .news-content {{
-            flex: 1;
-        }}
-        .news-title {{
-            font-size: 15px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }}
-        .news-title a {{
-            text-decoration: none;
-        }}
-        .news-title a:hover {{
-            text-decoration: underline;
-        }}
-        .news-source {{
-            font-size: 12px;
-            color: #999;
-            margin-bottom: 5px;
-        }}
-        .news-summary {{
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 8px;
-            line-height: 1.5;
-        }}
+        .news-content {{ flex: 1; min-width: 0; }}
+        .news-title {{ font-size: 14px; font-weight: bold; margin-bottom: 4px; }}
+        .news-title a {{ text-decoration: none; word-break: break-word; }}
+        .news-title a:hover {{ text-decoration: underline; }}
+        .news-source {{ font-size: 12px; color: #999; margin-bottom: 4px; }}
+        .news-summary {{ font-size: 13px; color: #555; margin-bottom: 6px; line-height: 1.5; }}
         .footer {{
-            background: #f5f7fa;
-            padding: 20px 30px;
+            background: #f8f9fa;
+            padding: 20px 25px;
             text-align: center;
             font-size: 12px;
             color: #999;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid #eee;
         }}
-        .footer p {{
-            margin: 5px 0;
-        }}
+        .footer .features {{ margin-bottom: 8px; }}
+        .footer .features span {{ display: inline-block; margin: 2px 6px; color: #667eea; }}
         @media (max-width: 600px) {{
-            .stats {{
-                grid-template-columns: 1fr;
-            }}
-            .news-card {{
-                flex-direction: column;
-            }}
+            .stats {{ grid-template-columns: 1fr; }}
+            .news-card {{ flex-direction: column; }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 AI新闻日报</h1>
-            <p>优质内容聚合 • 智能分类解读 • 专业 + 简洁双版本</p>
-            <p>{datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}</p>
+            <h1>AI 新闻日报</h1>
+            <p class="subtitle">智能分类解读 | 专业 + 简洁双版本</p>
+            <p class="date">{today}</p>
         </div>
-
         <div class="stats">
             <div class="stat">
-                <div class="stat-value">{len(news_list)}</div>
+                <div class="stat-value">{total_news}</div>
                 <div class="stat-label">条新闻</div>
             </div>
             <div class="stat">
-                <div class="stat-value">{len(categories)}</div>
+                <div class="stat-value">{total_cats}</div>
                 <div class="stat-label">个分类</div>
             </div>
             <div class="stat">
-                <div class="stat-value">{len(set(n.get('source', '') for n in news_list))}</div>
+                <div class="stat-value">{total_sources}</div>
                 <div class="stat-label">个来源</div>
             </div>
         </div>
-
         <div class="content">
             {categories_html}
         </div>
-
         <div class="footer">
-            <p><strong>📊 关键特性</strong></p>
-            <p>✓ 9类专业分类  ✓ 专业版+简洁版双解读  ✓ 22个优质信息源</p>
-            <p>✓ 自动去重  ✓ 每日早8:00自动推送  ✓ 支持多邮箱接收</p>
-            <p style="margin-top: 15px; color: #ccc;">本邮件由AI新闻聚合系统自动生成 • 系统已配置到GitHub Actions自动化</p>
+            <p class="features">
+                <span>智能分类</span> | <span>双版本解读</span> | <span>自动去重</span> | <span>每日推送</span>
+            </p>
+            <p>本邮件由 AI 新闻聚合系统自动生成发送</p>
         </div>
     </div>
 </body>
-</html>
-        '''
+</html>'''
 
         return html
 
     def _generate_text_email(self, news_list):
-        """生成纯文本版本（备用）"""
+        """生成纯中文文本版本（备用）"""
         from summary_generator import categorize_news
 
-        body = f"AI新闻日报 - {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n"
-        body += "=" * 80 + "\n\n"
+        today = datetime.now().strftime('%Y年%m月%d日 %H:%M')
+        body = f"AI 新闻日报 — {today}\n"
+        body += "=" * 70 + "\n\n"
 
-        # 按分类组织
         categories = defaultdict(list)
         for news in news_list:
             category = news.get('category', '其他')
             categories[category].append(news)
 
-        # 按分类输出
+        body += f"共 {len(news_list)} 条新闻，{len(categories)} 个分类，{len(set(n.get('source', '') for n in news_list))} 个来源\n\n"
+
         for category in sorted(categories.keys()):
             items = categories[category]
-            body += f"\n【{category}】({len(items)}条新闻)\n"
-            body += "-" * 80 + "\n\n"
+            body += f"【{category}】（{len(items)}条）\n"
+            body += "-" * 70 + "\n\n"
 
             for i, news in enumerate(items, 1):
                 title = news.get('title', '标题缺失')
-                summary = news.get('summary', '暂无摘要')[:100]
-                url = news.get('url', '#')
                 source = news.get('source', '未知来源')
+                url = news.get('url', '#')
+                summary = news.get('summary', '暂无摘要')[:120]
                 pro = news.get('professional_explanation', '')[:150]
                 simple = news.get('simple_explanation', '')[:120]
 
                 body += f"{i}. {title}\n"
                 body += f"   来源: {source}\n"
                 body += f"   摘要: {summary}\n"
-                body += f"   【专业版】{pro}\n"
-                body += f"   【简洁版】{simple}\n"
+                if pro:
+                    body += f"   专业解读: {pro}\n"
+                if simple:
+                    body += f"   简洁解读: {simple}\n"
                 body += f"   链接: {url}\n\n"
 
-        body += "=" * 80 + "\n"
-        body += "📊 统计信息:\n"
-        body += f"   总计: {len(news_list)}条新闻\n"
-        body += f"   分类: {len(categories)}个主题\n"
-        body += f"   来源: {len(set(n.get('source', '') for n in news_list))}个\n"
-        body += "\n" + "=" * 80 + "\n"
-        body += "✓ 系统特性:\n"
-        body += "   • 9类专业分类 (大模型突破、推理能力、长上下文、多模态等)\n"
-        body += "   • 专业版+简洁版双解读\n"
-        body += "   • 22个优质信息源\n"
-        body += "   • 自动去重和重排序\n"
-        body += "   • 每日早8:00自动推送\n"
-        body += "   • 支持多邮箱接收\n"
-        body += "\n本邮件由AI新闻聚合系统自动生成\n"
+        body += "=" * 70 + "\n"
+        body += "本邮件由 AI 新闻聚合系统自动生成\n"
 
         return body
