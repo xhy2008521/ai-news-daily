@@ -2,19 +2,46 @@ name: Daily AI News
 
 on:
   schedule:
+    # 每天 00:00 UTC = 北京时间 08:00
     - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
-  push:
+  push-ai-news:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - run: pip install requests feedparser beautifulsoup4 lxml -q
-      - env:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: pip install requests feedparser beautifulsoup4 lxml -q
+
+      - name: 执行新闻爬取与邮件推送
+        env:
           QQ_EMAIL: ${{ secrets.QQ_EMAIL }}
           QQ_AUTH_CODE: ${{ secrets.QQ_AUTH_CODE }}
-        run: python ai_news_system/main.py
+          QQ_EMAIL2: ${{ secrets.QQ_EMAIL2 }}
+          QQ_AUTH_CODE2: ${{ secrets.QQ_AUTH_CODE2 }}
+          QQ_EMAIL3: ${{ secrets.QQ_EMAIL3 }}
+          QQ_AUTH_CODE3: ${{ secrets.QQ_AUTH_CODE3 }}
+        run: |
+          cd ai_news_system && python main.py
+
+      - name: 推送成功
+        if: success()
+        run: |
+          echo "AI 新闻已成功推送到邮箱！"
+          echo "推送时间: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+
+      - name: 推送失败告警
+        if: failure()
+        run: |
+          echo "邮件推送失败，请检查日志和邮箱配置"
+          echo "运行时间: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+          exit 1
