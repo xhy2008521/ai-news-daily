@@ -108,7 +108,7 @@ def main():
         success = email_sender.send_news(classified_news)
 
         if success:
-            logger.info(f"新闻已推送到 {1 + (1 if email_sender.email2 else 0)} 个邮箱")
+            logger.info(f"新闻已推送到 {len(email_sender.emails)} 个邮箱")
             # 清理旧数据
             db.clear_old_data(days=30)
             logger.info("旧数据已清理")
