@@ -1,14 +1,46 @@
 """
-AI新闻爬取模块 - 从各个数据源收集新闻
+AI新闻爬取模块 - 从各个数据源收集新闻（自动翻译为中文）
 """
 import requests
 import feedparser
+import re
+import time
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import logging
 import config
 
 logger = logging.getLogger(__name__)
+
+
+def translate_to_chinese(text):
+    """使用免费翻译 API 将英文翻译为中文"""
+    if not text or len(text) < 5:
+        return text
+
+    # 检测是否为中文
+    chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+    if chinese_chars > len(text) * 0.3:
+        return text  # 已包含大量中文
+
+    try:
+        # MyMemory 免费翻译 API（无需 API key）
+        url = 'https://api.mymemory.translated.net/get'
+        params = {
+            'q': text[:500],  # 限制长度
+            'langpair': 'en|zh-CN'
+        }
+        resp = requests.get(url, params=params, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            translated = data.get('responseData', {}).get('translatedText', '')
+            if translated and translated != text:
+                return translated
+    except Exception:
+        pass
+
+    # 翻译失败时返回原文，标记 [英]
+    return '[英] ' + text
 
 
 class NewsAggregator:
@@ -154,12 +186,18 @@ class NewsAggregator:
                     summary = soup.get_text()[:100]
 
                 if url and not self.db.is_news_pushed(url):
+                    # 翻译标题和摘要
+                    translated_title = translate_to_chinese(title)
+                    translated_summary = translate_to_chinese(summary[:200])
+
                     news = {
                         'category': category,
-                        'title': title,
-                        'summary': summary,
+                        'title': translated_title,
+                        'summary': translated_summary,
                         'url': url,
-                        'source': source_name
+                        'source': source_name,
+                        'original_title': title if translated_title != title else '',
+                        'original_summary': summary[:200] if translated_summary != summary[:200] else '',
                     }
                     self.news_list.append(news)
                     self.db.add_news(url, title, category, source_name)
@@ -196,12 +234,18 @@ class NewsAggregator:
                 if any(keyword in title.lower() for keyword in ['ai', 'ml', 'llm', 'gpt', '机器学习', '人工智能']):
                     story_link = story.get('url', f"https://news.ycombinator.com/item?id={story_id}")
                     if story_link and not self.db.is_news_pushed(story_link):
+                        translated_title = translate_to_chinese(title)
+                        score_cn = translate_to_chinese(
+                            f"({story.get('score', 0)} points, {story.get('descendants', 0)} comments)"
+                        )
                         news = {
                             'category': '国际新闻',
-                            'title': title,
-                            'summary': f"({story.get('score', 0)} points, {story.get('descendants', 0)} comments)",
+                            'title': translated_title,
+                            'summary': score_cn,
                             'url': story_link,
-                            'source': 'Hacker News'
+                            'source': 'Hacker News',
+                            'original_title': title if translated_title != title else '',
+                            'original_summary': '',
                         }
                         self.news_list.append(news)
                         self.db.add_news(story_link, title, '国际新闻', 'Hacker News')
@@ -237,13 +281,16 @@ class NewsAggregator:
                 url_paper = f"https://arxiv.org/abs/{arxiv_id}"
 
                 if not self.db.is_news_pushed(url_paper):
+                    translated_title = translate_to_chinese(title)
                     authors = ', '.join([author.name for author in entry.authors[:3]])
                     news = {
                         'category': '学术论文',
-                        'title': title,
+                        'title': translated_title,
                         'summary': f"作者: {authors}",
                         'url': url_paper,
-                        'source': 'arXiv'
+                        'source': 'arXiv',
+                        'original_title': title if translated_title != title else '',
+                        'original_summary': '',
                     }
                     self.news_list.append(news)
                     self.db.add_news(url_paper, title, '学术论文', 'arXiv')
