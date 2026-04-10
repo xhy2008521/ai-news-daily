@@ -69,8 +69,11 @@ class ReportGenerator:
 
         # 生成来源分布HTML
         sources_html = ""
+        sources_values = list(stats['sources'].values()) if stats['sources'] else []
+        max_count = max(sources_values) if sources_values else 1
+        # 安全遍历：确保max只比较int
         for source, count in list(stats['sources'].items())[:8]:  # 只显示前8个源
-            width = (count / max(stats['sources'].values(), 1)) * 100
+            width = (count / max_count) * 100
             sources_html += f'''
             <div class="source-item">
                 <span class="source-name">{source}</span>
