@@ -69,7 +69,7 @@ class EmailSender:
         """发送邮件到指定邮箱（HTML + 纯文本双格式）"""
         try:
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"AI新闻日报 | {datetime.now().strftime('%Y年%m月%d日')}"
+            msg['Subject'] = f"AI NEWS | {datetime.now().strftime('%Y.%m.%d')} | 全球资讯聚合"
             msg['From'] = email
             msg['To'] = email
 
@@ -96,7 +96,7 @@ class EmailSender:
             return False
 
     def _generate_html_email(self, news_list):
-        """生成全中文美观的HTML邮件"""
+        """生成科技风中文HTML邮件"""
         from summary_generator import categorize_news
 
         # 按分类组织
@@ -105,30 +105,31 @@ class EmailSender:
             category = news.get('category', '其他')
             categories[category].append(news)
 
-        # 颜色映射
+        # 分类配色（科技霓虹色）
         color_map = {
-            '大模型突破': '#FF6B6B',
-            '推理能力': '#4ECDC4',
-            '长上下文': '#45B7D1',
-            '多模态': '#FFA07A',
-            '开源': '#98D8C8',
-            '应用产品': '#F7DC6F',
-            '优化效率': '#BB8FCE',
-            '安全治理': '#F8B88B',
-            '论文研究': '#85C1E2',
-            '其他': '#95A5A6'
+            '大模型突破': '#00f0ff',
+            '推理能力': '#7b2ff7',
+            '长上下文': '#00d4ff',
+            '多模态': '#ff6b6b',
+            '开源': '#00ff88',
+            '应用产品': '#ffa726',
+            '优化效率': '#bb86fc',
+            '安全治理': '#ff7043',
+            '论文研究': '#42a5f5',
+            '其他': '#78909c'
         }
 
         # 构建分类HTML
         categories_html = ""
         for category in sorted(categories.keys()):
             items = categories[category]
-            color = color_map.get(category, '#95A5A6')
+            color = color_map.get(category, '#78909c')
 
             categories_html += f'''
-            <div class="category-section" style="border-left: 5px solid {color};">
-                <h3 style="color: {color}; margin: 15px 0 10px 0; padding-left: 10px;">
-                    {category}（{len(items)}条）
+            <div class="category-section" style="border-top: 2px solid {color}; margin-bottom: 24px; padding: 16px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                <h3 style="color: {color}; margin: 0 0 14px 0; font-size: 16px; font-weight: 600; letter-spacing: 1px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; background: {color}; border-radius: 50%; margin-right: 8px; vertical-align: middle; box-shadow: 0 0 6px {color};"></span>
+                    {category} <span style="font-size: 13px; opacity: 0.6; font-weight: 400;">({len(items)}条)</span>
                 </h3>
             '''
 
@@ -136,25 +137,39 @@ class EmailSender:
                 title = news.get('title', '标题缺失')
                 source = news.get('source', '未知来源')
                 url = news.get('url', '#')
-                summary = news.get('summary', '暂无摘要')[:120]
-                pro = news.get('professional_explanation', '')[:130]
-                simple = news.get('simple_explanation', '')[:110]
+                summary = news.get('summary', '暂无摘要')[:140]
+                pro = news.get('professional_explanation', '')[:140]
+                simple = news.get('simple_explanation', '')[:120]
+                orig_title = news.get('original_title', '')
+
+                # 来源标签颜色
+                source_colors = {
+                    '机器之心': '#e91e63', '量子位': '#ff9800', 'AI前线': '#4caf50',
+                    'Hacker News': '#ff6b6b', 'arXiv': '#42a5f5', 'OpenAI Blog': '#00f0ff',
+                    'DeepMind Blog': '#7b2ff7', 'Anthropic': '#bb86fc',
+                }
+                src_color = source_colors.get(source, '#607d8b')
+
+                # 如果有原文标题，显示翻译对比
+                orig_html = ""
+                if orig_title:
+                    orig_html = f'<div style="font-size: 11px; color: #78909c; margin-bottom: 4px; font-style: italic;">原文: {orig_title}</div>'
 
                 categories_html += f'''
-                <div class="news-card">
-                    <div class="news-number" style="background-color: {color};">{i}</div>
-                    <div class="news-content">
-                        <div class="news-title">
-                            <a href="{url}" target="_blank" style="color: {color};">{title}</a>
+                <div class="news-card" style="display: flex; gap: 12px; padding: 14px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 10px; border-left: 3px solid {color};">
+                    <div style="min-width: 32px; height: 32px; background: rgba(0,240,255,0.1); color: {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">{i}</div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="margin-bottom: 2px;">{orig_html}<a href="{url}" target="_blank" style="color: #e0e0e0; font-size: 14px; font-weight: 500; text-decoration: none;">{title}</a></div>
+                        <div style="margin-bottom: 4px;">
+                            <span style="font-size: 11px; color: {src_color}; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 3px;">{source}</span>
                         </div>
-                        <div class="news-source">来源: {source}</div>
-                        <div class="news-summary">{summary}</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; font-size: 12px;">
-                            <div style="background: #f0f4ff; padding: 8px; border-radius: 4px;">
-                                <strong style="color: #5e72e4;">专业解读:</strong> {pro}
+                        <div style="font-size: 12px; color: #9e9e9e; line-height: 1.5; margin-bottom: 6px;">{summary}</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                            <div style="background: rgba(0,240,255,0.04); padding: 6px 8px; border-radius: 4px; border-left: 2px solid rgba(0,240,255,0.3);">
+                                <span style="color: #00f0ff; font-weight: 500;">专业:</span> <span style="color: #b0bec5;">{pro}</span>
                             </div>
-                            <div style="background: #f9f5ff; padding: 8px; border-radius: 4px;">
-                                <strong style="color: #764ba2;">简洁解读:</strong> {simple}
+                            <div style="background: rgba(123,47,247,0.04); padding: 6px 8px; border-radius: 4px; border-left: 2px solid rgba(123,47,247,0.3);">
+                                <span style="color: #bb86fc; font-weight: 500;">简洁:</span> <span style="color: #b0bec5;">{simple}</span>
                             </div>
                         </div>
                     </div>
@@ -163,142 +178,73 @@ class EmailSender:
 
             categories_html += '</div>'
 
-        # 统计信息
+        # 统计
         total_news = len(news_list)
         total_cats = len(categories)
         total_sources = len(set(n.get('source', '') for n in news_list))
-
-        today = datetime.now().strftime('%Y年%m月%d日')
+        today = datetime.now().strftime('%Y.%m.%d')
+        week_day = datetime.now().strftime('%A')
 
         html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI新闻日报</title>
+    <title>AI 新闻日报</title>
     <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-            background: #f0f2f5;
-            color: #333;
-            line-height: 1.6;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 860px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px 30px;
-            text-align: center;
-        }}
-        .header h1 {{ font-size: 32px; margin-bottom: 8px; letter-spacing: 1px; }}
-        .header .subtitle {{ font-size: 14px; opacity: 0.9; margin-bottom: 6px; }}
-        .header .date {{ font-size: 13px; opacity: 0.8; }}
-        .stats {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            padding: 0 25px;
-            margin-top: -25px;
-            position: relative;
-            z-index: 1;
-        }}
-        .stat {{
-            background: white;
-            padding: 18px 12px;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }}
-        .stat-value {{ font-size: 26px; font-weight: bold; color: #667eea; margin-bottom: 4px; }}
-        .stat-label {{ font-size: 12px; color: #888; }}
-        .content {{ padding: 25px; }}
-        .category-section {{
-            margin-bottom: 22px;
-            padding: 14px;
-            background: #fafbfc;
-            border-radius: 8px;
-        }}
-        .news-card {{
-            display: flex;
-            gap: 12px;
-            padding: 14px;
-            background: white;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-        }}
-        .news-number {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            color: white;
-            font-weight: bold;
-            flex-shrink: 0;
-            font-size: 14px;
-        }}
-        .news-content {{ flex: 1; min-width: 0; }}
-        .news-title {{ font-size: 14px; font-weight: bold; margin-bottom: 4px; }}
-        .news-title a {{ text-decoration: none; word-break: break-word; }}
-        .news-title a:hover {{ text-decoration: underline; }}
-        .news-source {{ font-size: 12px; color: #999; margin-bottom: 4px; }}
-        .news-summary {{ font-size: 13px; color: #555; margin-bottom: 6px; line-height: 1.5; }}
-        .footer {{
-            background: #f8f9fa;
-            padding: 20px 25px;
-            text-align: center;
-            font-size: 12px;
-            color: #999;
-            border-top: 1px solid #eee;
-        }}
-        .footer .features {{ margin-bottom: 8px; }}
-        .footer .features span {{ display: inline-block; margin: 2px 6px; color: #667eea; }}
-        @media (max-width: 600px) {{
-            .stats {{ grid-template-columns: 1fr; }}
-            .news-card {{ flex-direction: column; }}
-        }}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {{ background: #0a0e17; font-family: 'Inter', -apple-system, 'Microsoft YaHei', sans-serif; color: #e0e0e0; margin: 0; padding: 0; }}
+        .container {{ max-width: 800px; margin: 0 auto; background: #0f1623; }}
+        .header {{ background: linear-gradient(135deg, #0a0e17 0%, #1a1f35 50%, #0f1623 100%); padding: 40px 30px 24px; text-align: center; border-bottom: 1px solid rgba(0,240,255,0.15); }}
+        .header h1 {{ font-size: 32px; font-weight: 700; color: #ffffff; margin: 0 0 6px 0; letter-spacing: 2px; text-shadow: 0 0 20px rgba(0,240,255,0.3); }}
+        .header .accent-line {{ width: 60px; height: 2px; background: linear-gradient(90deg, #00f0ff, #7b2ff7); margin: 0 auto 12px; border-radius: 1px; }}
+        .header .date {{ font-size: 13px; color: #78909c; margin: 0; }}
+        .header .tag {{ display: inline-block; font-size: 11px; color: #00f0ff; background: rgba(0,240,255,0.08); padding: 3px 10px; border-radius: 20px; margin-top: 10px; border: 1px solid rgba(0,240,255,0.2); }}
+        .stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 20px 24px; }}
+        .stat {{ background: rgba(0,240,255,0.03); padding: 16px 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(0,240,255,0.08); }}
+        .stat-value {{ font-size: 28px; font-weight: 700; color: #00f0ff; text-shadow: 0 0 10px rgba(0,240,255,0.2); }}
+        .stat-label {{ font-size: 11px; color: #78909c; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }}
+        .content {{ padding: 0 24px 24px; }}
+        .footer {{ text-align: center; padding: 20px 24px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }}
+        .footer .badges {{ margin-bottom: 8px; }}
+        .footer .badge {{ display: inline-block; font-size: 10px; color: #78909c; background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 3px; margin: 2px 3px; }}
+        .footer .copyright {{ font-size: 11px; color: #455a64; margin: 6px 0 0; }}
+        @media (max-width: 600px) {{ .stats {{ grid-template-columns: 1fr; }} }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>AI 新闻日报</h1>
-            <p class="subtitle">智能分类解读 | 专业 + 简洁双版本</p>
-            <p class="date">{today}</p>
+            <h1>AI NEWS DAILY</h1>
+            <div class="accent-line"></div>
+            <p class="date">{today} | {week_day} | 全球 AI 资讯聚合</p>
+            <span class="tag">智能分类 | 双语解读 | 每日更新</span>
         </div>
         <div class="stats">
             <div class="stat">
                 <div class="stat-value">{total_news}</div>
-                <div class="stat-label">条新闻</div>
+                <div class="stat-label">新闻</div>
             </div>
             <div class="stat">
                 <div class="stat-value">{total_cats}</div>
-                <div class="stat-label">个分类</div>
+                <div class="stat-label">分类</div>
             </div>
             <div class="stat">
                 <div class="stat-value">{total_sources}</div>
-                <div class="stat-label">个来源</div>
+                <div class="stat-label">来源</div>
             </div>
         </div>
         <div class="content">
             {categories_html}
         </div>
         <div class="footer">
-            <p class="features">
-                <span>智能分类</span> | <span>双版本解读</span> | <span>自动去重</span> | <span>每日推送</span>
-            </p>
-            <p>本邮件由 AI 新闻聚合系统自动生成发送</p>
+            <div class="badges">
+                <span class="badge">AI 驱动分类</span>
+                <span class="badge">自动翻译</span>
+                <span class="badge">去重过滤</span>
+                <span class="badge">每日 08:00 推送</span>
+            </div>
+            <p class="copyright">本邮件由 AI 新闻聚合系统自动生成</p>
         </div>
     </div>
 </body>
